@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, AnimatePresence, useInView } from "framer-motion";
 import { Navbar } from "@/components/shared/navbar";
 import { CardTilt } from "@/components/shared/card-tilt";
 import { ScrollReveal } from "@/components/shared/scroll-reveal";
@@ -12,7 +12,12 @@ import {
   Monitor,
   Database,
   Cpu,
-  Sparkles
+  Sparkles,
+  Bot,
+  Zap,
+  Server,
+  Shield,
+  Code
 } from "lucide-react";
 import React, { useState, useEffect } from "react";
 
@@ -37,7 +42,14 @@ const skillCategories = [
   },
 ];
 
-// Списки для анимированных плейсхолдеров
+const heroTags = [
+  { text: "Створюю преміальних ботів", icon: Bot },
+  { text: "Створюю швидкі веб-додатки", icon: Zap },
+  { text: "Пишу надійний бекенд", icon: Server },
+  { text: "Створюю захищені сайти", icon: Shield },
+  { text: "Автоматизую рутину", icon: Code },
+];
+
 const namesList = ["Олексій Навальний", "Володимир Зеленський", "Джо Байден", "Петро Порошенко", "Юлія Тимошенко"];
 const domainsList = ["example.com", "gmail.com", "outlook.com", "yahoo.com", "proton.me", "icloud.com"];
 
@@ -89,11 +101,82 @@ function useTypewriter(words: string[], baseString: string = "", typeSpeed = 100
   return text;
 }
 
+const bioParagraphs = [
+  "Я спеціалізуюся на розробці потужних і надійних Telegram та Discord ботів на Python, автоматизуючи рутину і створюючи зручні інструменти для користувачів.",
+  "Крім ботів, я захоплююся веб-розробкою. Я створюю швидкі, інтерактивні та мінімалістичні інтерфейси за допомогою React, TypeScript та Tailwind CSS.",
+  "Мій підхід — це чистий код, увага до деталей та бажання постійно розвиватися у вирішенні складних інженерних завдань. Завжди відкритий для нових проєктів!"
+];
+
+function BioTypewriter() {
+  const [charIndex, setCharIndex] = useState(0);
+  const ref = React.useRef(null);
+  const isInView = useInView(ref, { once: true, margin: "-100px" });
+
+  useEffect(() => {
+    if (!isInView) return;
+    const totalChars = bioParagraphs.join("").length;
+    if (charIndex >= totalChars) return;
+
+    const timer = setInterval(() => {
+      setCharIndex((prev) => prev + 2);
+    }, 15);
+
+    return () => clearInterval(timer);
+  }, [isInView, charIndex]);
+
+  let remaining = charIndex;
+  const totalChars = bioParagraphs.join("").length;
+
+  return (
+    <div ref={ref} className="space-y-6 text-muted-foreground text-md sm:text-lg leading-relaxed">
+      {bioParagraphs.map((p, i) => {
+        const pLen = p.length;
+        const take = Math.min(remaining, pLen);
+        remaining = Math.max(0, remaining - pLen);
+        const textToDisplay = p.slice(0, take);
+        
+        const isCurrentlyTyping = take > 0 && take < pLen;
+        const isWaitingToStart = take === 0 && charIndex < totalChars && i === 0;
+        const isFullyDone = charIndex >= totalChars;
+        const isLastParagraph = i === bioParagraphs.length - 1;
+        
+        const showCursor = isCurrentlyTyping || isWaitingToStart || (isFullyDone && isLastParagraph);
+
+        return (
+          <p key={i}>
+            <span>{textToDisplay}</span>
+            <span className="relative">
+              {showCursor && (
+                <motion.span
+                  animate={{ opacity: [1, 0] }}
+                  transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
+                  className="absolute text-primary"
+                >
+                  |
+                </motion.span>
+              )}
+            </span>
+            <span className="opacity-0">{p.slice(take)}</span>
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function Home() {
   const [formState, setFormState] = useState({ name: "", email: "", message: "" });
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [dots, setDots] = useState("");
   const [githubProjects, setGithubProjects] = useState<any[]>([]);
+  const [currentTagIndex, setCurrentTagIndex] = useState(0);
+
+  useEffect(() => {
+    const tagInterval = setInterval(() => {
+      setCurrentTagIndex((prev) => prev + 1);
+    }, 3000);
+    return () => clearInterval(tagInterval);
+  }, []);
 
   useEffect(() => {
     const fetchGitHub = async () => {
@@ -154,15 +237,37 @@ export default function Home() {
           <div className="max-w-6xl w-full text-center z-10 flex flex-col items-center">
             
             {/* Tagline */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5 }}
-              className="inline-flex items-center space-x-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-xs sm:text-sm font-medium text-primary mb-6"
-            >
-              <Sparkles className="h-4 w-4 animate-spin-slow" />
-              <span>Створюю преміальних ботів</span>
-            </motion.div>
+            <div className="relative w-full max-w-2xl h-12 mb-6 flex items-center justify-center overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_15%,black_85%,transparent)]">
+              <AnimatePresence>
+                {[-1, 0, 1].map((offset) => {
+                  const absoluteIndex = currentTagIndex + offset;
+                  const wrappedIndex = ((absoluteIndex % heroTags.length) + heroTags.length) % heroTags.length;
+                  const item = heroTags[wrappedIndex];
+                  const Icon = item.icon;
+
+                  return (
+                    <motion.div
+                      key={absoluteIndex}
+                      initial={{ opacity: 0, x: (offset + 1) * 280, scale: 0.7 }}
+                      animate={{ 
+                        opacity: offset === 0 ? 1 : 0.4, 
+                        x: offset * 280, 
+                        scale: offset === 0 ? 1 : 0.85,
+                        zIndex: offset === 0 ? 10 : 5
+                      }}
+                      exit={{ opacity: 0, x: (offset - 1) * 280, scale: 0.7 }}
+                      transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+                      className="absolute left-1/2 top-1/2 w-0 h-0 flex items-center justify-center"
+                    >
+                      <div className="inline-flex items-center space-x-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-xs sm:text-sm font-medium text-primary whitespace-nowrap shadow-sm bg-background/50 backdrop-blur-md">
+                        <Icon className="h-4 w-4 shrink-0" />
+                        <span>{item.text}</span>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
+            </div>
 
             {/* Title */}
             <motion.h1
@@ -292,17 +397,7 @@ export default function Home() {
                 </h2>
               </ScrollReveal>
               <ScrollReveal delay={0.1}>
-                <div className="space-y-6 text-muted-foreground text-md sm:text-lg leading-relaxed">
-                  <p>
-                    Я спеціалізуюся на розробці потужних і надійних Telegram та Discord ботів на Python, автоматизуючи рутину і створюючи зручні інструменти для користувачів.
-                  </p>
-                  <p>
-                    Крім ботів, я захоплююся веб-розробкою. Я створюю швидкі, інтерактивні та мінімалістичні інтерфейси за допомогою React, TypeScript та Tailwind CSS.
-                  </p>
-                  <p>
-                    Мій підхід — це чистий код, увага до деталей та бажання постійно розвиватися у вирішенні складних інженерних завдань. Завжди відкритий для нових проєктів!
-                  </p>
-                </div>
+                <BioTypewriter />
               </ScrollReveal>
             </div>
 
@@ -319,7 +414,7 @@ export default function Home() {
                       {category.skills.map((skill) => (
                         <span
                           key={skill}
-                          className="px-4 py-1.5 rounded-2xl text-sm font-medium bg-background border border-border/40 text-foreground transition-all duration-300 hover:border-primary/50 hover:bg-primary hover:text-white cursor-default"
+                          className="px-4 py-1.5 rounded-2xl text-sm font-medium bg-background border border-border/40 text-foreground transition-all duration-200 ease-out hover:scale-105 hover:border-primary/50 hover:bg-primary hover:text-white cursor-default"
                         >
                           {skill}
                         </span>
