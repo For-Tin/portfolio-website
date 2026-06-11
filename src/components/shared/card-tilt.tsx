@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 
 interface CardTiltProps {
@@ -26,9 +26,17 @@ export function CardTilt({ children, className = "" }: CardTiltProps) {
   // Состояние ховера и координаты для светового блика
   const [isHovered, setIsHovered] = useState(false);
   const [spotlightPos, setSpotlightPos] = useState({ x: 0, y: 0 });
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!ref.current) return;
+    if (!ref.current || isMobile) return;
 
     const rect = ref.current.getBoundingClientRect();
     const width = rect.width;
@@ -60,14 +68,14 @@ export function CardTilt({ children, className = "" }: CardTiltProps) {
       onMouseMove={handleMouseMove}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      style={{ perspective: 1000 }}
+      style={{ perspective: isMobile ? "none" : 1000 }}
       className="w-full h-full"
     >
       <motion.div
         style={{
-          rotateX,
-          rotateY,
-          transformStyle: "preserve-3d",
+          rotateX: isMobile ? 0 : rotateX,
+          rotateY: isMobile ? 0 : rotateY,
+          transformStyle: isMobile ? "flat" : "preserve-3d",
         }}
         className={`relative w-full h-full rounded-[2rem] border border-border/80 bg-card/60 p-8 shadow-sm overflow-hidden transition-colors duration-500 backdrop-blur-sm ${className}`}
       >
@@ -75,13 +83,13 @@ export function CardTilt({ children, className = "" }: CardTiltProps) {
         <div
           className="pointer-events-none absolute -inset-px rounded-[2rem] opacity-0 transition-opacity duration-300"
           style={{
-            opacity: isHovered ? 0.08 : 0,
+            opacity: isHovered && !isMobile ? 0.08 : 0,
             background: `radial-gradient(350px circle at ${spotlightPos.x}px ${spotlightPos.y}px, var(--primary), transparent 75%)`,
           }}
         />
 
         {/* Обёртка контента с эффектом 3D-выталкивания */}
-        <div style={{ transform: "translateZ(30px)" }} className="relative h-full flex flex-col">
+        <div style={{ transform: isMobile ? "none" : "translateZ(30px)" }} className="relative h-full flex flex-col">
           {children}
         </div>
       </motion.div>

@@ -26,7 +26,7 @@ export async function sendTelegramMessage(formData: { name: string; email: strin
   const headersList = await headers();
   const ip = headersList.get("x-forwarded-for") || headersList.get("x-real-ip") || "unknown-ip";
   const now = Date.now();
-  const windowMs = 60 * 1000; // 1 minute
+  const windowMs = 10 * 60 * 1000; // 10 minutes
   const maxRequests = 3;
 
   let limitData = rateLimitMap.get(ip);
@@ -38,7 +38,7 @@ export async function sendTelegramMessage(formData: { name: string; email: strin
   rateLimitMap.set(ip, limitData);
 
   if (limitData.count > maxRequests) {
-    throw new Error("Забагато запитів. Будь ласка, зачекайте хвилинку.");
+    throw new Error("Занадто багато запитів. Будь ласка, зачекайте 10 хвилин.");
   }
 
   const botToken = process.env.TELEGRAM_BOT_TOKEN;

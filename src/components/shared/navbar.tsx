@@ -10,17 +10,32 @@ const navLinks = [
   { name: "Головна", href: "#hero" },
   { name: "Проєкти", href: "#projects" },
   { name: "Навички", href: "#skills" },
-  { name: "Контакти", href: "#contact" },
+  { name: "Зв'язатися", href: "#contact" },
 ];
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
+  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    e.preventDefault();
+    setIsOpen(false);
+    
+    setTimeout(() => {
+      const targetId = href.replace("#", "");
+      const elem = document.getElementById(targetId);
+      if (elem) {
+        elem.scrollIntoView({ behavior: "smooth" });
+        window.history.pushState(null, "", href);
+      }
+    }, 50);
+  };
+
   useEffect(() => {
     const handleScroll = () => {
       setScrolled(window.scrollY > 20);
     };
+    handleScroll();
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
@@ -45,6 +60,7 @@ export function Navbar() {
             <a
               key={link.name}
               href={link.href}
+              onClick={(e) => handleNavClick(e, link.href)}
               className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors duration-300 relative py-1 group"
             >
               {link.name}
@@ -75,6 +91,7 @@ export function Navbar() {
       <AnimatePresence>
         {isOpen && (
           <motion.div
+            key="mobile-menu"
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
@@ -85,7 +102,7 @@ export function Navbar() {
               <a
                 key={link.name}
                 href={link.href}
-                onClick={() => setIsOpen(false)}
+                onClick={(e) => handleNavClick(e, link.href)}
                 className="text-lg font-medium text-muted-foreground hover:text-foreground transition-colors duration-300 py-2 border-b border-border/20 last:border-0"
               >
                 {link.name}
