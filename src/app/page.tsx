@@ -17,9 +17,12 @@ import {
   Zap,
   Server,
   Shield,
-  Code
+  Code,
+  AlertCircle,
+  X
 } from "lucide-react";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { sendTelegramMessage } from "./actions";
 
 
 
@@ -165,8 +168,10 @@ function BioTypewriter() {
 }
 
 export default function Home() {
-  const [formState, setFormState] = useState({ name: "", email: "", message: "" });
-  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [formState, setFormState] = useState({ name: "", email: "", message: "", honeypot: "" });
+  const [submitStatus, setSubmitStatus] = useState<"idle" | "submitting" | "success" | "error">("idle");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const errorTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [dots, setDots] = useState("");
   const [githubProjects, setGithubProjects] = useState<any[]>([]);
   const [currentTagIndex, setCurrentTagIndex] = useState(0);
@@ -211,14 +216,44 @@ export default function Home() {
   const emailPlaceholder = useTypewriter(domainsList, "name@");
   const messagePlaceholder = `Ваше повідомлення${dots}`;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (formState.name && formState.email && formState.message) {
-      setIsSubmitted(true);
-      setTimeout(() => {
-        setIsSubmitted(false);
-        setFormState({ name: "", email: "", message: "" });
-      }, 3000);
+    if (submitStatus === "submitting" || submitStatus === "success") return;
+
+    const showError = (msg: string) => {
+      setErrorMessage(msg);
+      if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
+      errorTimerRef.current = setTimeout(() => setErrorMessage(null), 4000);
+    };
+
+    const { name, email, message } = formState;
+
+    if (!name.trim() || !email.trim() || !message.trim()) {
+      showError("Будь ласка, заповніть всі обов'язкові поля.");
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      showError("Неправильний формат електронної пошти.");
+      return;
+    }
+
+    setSubmitStatus("submitting");
+    if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
+    setErrorMessage(null);
+    
+    try {
+      await sendTelegramMessage(formState);
+
+      setSubmitStatus("success");
+      setFormState({ name: "", email: "", message: "", honeypot: "" });
+      setTimeout(() => setSubmitStatus("idle"), 5000);
+    } catch (error: any) {
+      console.error("Помилка відправки:", error);
+      setSubmitStatus("error");
+      showError(error.message || "Щось пішло не так при відправці.");
+      setTimeout(() => setSubmitStatus("idle"), 4000);
     }
   };
 
@@ -303,20 +338,24 @@ export default function Home() {
               transition={{ duration: 0.8, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
               className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full sm:w-auto"
             >
-              <a
-                href="#projects"
-                className="group w-full sm:w-auto inline-flex items-center justify-center rounded-2xl bg-primary px-8 py-4 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-all duration-300 hover:bg-primary/95 hover:shadow-primary/35 hover:-translate-y-1 active:scale-95 cursor-pointer"
-              >
-                Мої проєкти
-                <ArrowRight className="ml-2 h-4 w-4 transition-transform duration-300 group-hover:translate-x-1.5" />
-              </a>
-              <a
-                href="#contact"
-                className="group w-full sm:w-auto inline-flex items-center justify-center rounded-2xl border border-border bg-card/50 px-8 py-4 text-sm font-semibold text-foreground transition-all duration-300 hover:bg-secondary/50 hover:-translate-y-1 active:scale-95 cursor-pointer"
-              >
-                <Mail className="mr-2 h-4 w-4 transition-all duration-300 group-hover:-translate-y-1 group-hover:rotate-12 group-hover:text-primary" />
-                Зв'язатися
-              </a>
+              <div className="group w-full sm:w-auto">
+                <a
+                  href="#projects"
+                  className="w-full inline-flex items-center justify-center rounded-2xl bg-primary px-8 py-4 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-all duration-300 group-hover:bg-primary/95 group-hover:shadow-primary/35 group-hover:-translate-y-1 active:scale-95 cursor-pointer"
+                >
+                  Мої проєкти
+                  <ArrowRight className="ml-2 h-4 w-4 transition-transform duration-300 group-hover:translate-x-1.5" />
+                </a>
+              </div>
+              <div className="group w-full sm:w-auto">
+                <a
+                  href="#contact"
+                  className="w-full inline-flex items-center justify-center rounded-2xl border border-border bg-card/50 px-8 py-4 text-sm font-semibold text-foreground transition-all duration-300 group-hover:bg-secondary/50 group-hover:-translate-y-1 active:scale-95 cursor-pointer"
+                >
+                  <Mail className="mr-2 h-4 w-4 transition-all duration-300 group-hover:-translate-y-1 group-hover:rotate-12 group-hover:text-primary" />
+                  Зв'язатися
+                </a>
+              </div>
             </motion.div>
           </div>
         </section>
@@ -445,15 +484,28 @@ export default function Home() {
 
           {/* Form */}
           <ScrollReveal delay={0.2} className="w-full max-w-lg">
-            <form onSubmit={handleSubmit} className="space-y-6 rounded-[2rem] border border-border/60 bg-card/30 p-8 backdrop-blur-sm shadow-sm">
+            <form onSubmit={handleSubmit} noValidate className="space-y-6 rounded-[2rem] border border-border/60 bg-card/30 p-8 backdrop-blur-sm shadow-sm">
+              {/* Honeypot field - visually hidden to catch bots */}
+              <div className="hidden" aria-hidden="true" style={{ display: 'none' }}>
+                <label htmlFor="website">Сайт</label>
+                <input
+                  type="text"
+                  id="website"
+                  name="website"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  value={formState.honeypot}
+                  onChange={(e) => setFormState({ ...formState, honeypot: e.target.value })}
+                />
+              </div>
+
               <div>
                 <label htmlFor="name" className="block text-sm font-medium text-foreground mb-2">
-                  Ім'я
+                  Ім'я<span className="text-red-500 ml-1">*</span>
                 </label>
                 <input
                   type="text"
                   id="name"
-                  required
                   value={formState.name}
                   onChange={(e) => setFormState({ ...formState, name: e.target.value })}
                   className="w-full rounded-2xl border border-border bg-background/50 px-4 py-3 text-sm text-foreground transition-all duration-300 placeholder-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-primary focus:border-transparent"
@@ -463,12 +515,11 @@ export default function Home() {
 
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-foreground mb-2">
-                  Електронна пошта
+                  Електронна пошта<span className="text-red-500 ml-1">*</span>
                 </label>
                 <input
                   type="email"
                   id="email"
-                  required
                   value={formState.email}
                   onChange={(e) => setFormState({ ...formState, email: e.target.value })}
                   className="w-full rounded-2xl border border-border bg-background/50 px-4 py-3 text-sm text-foreground transition-all duration-300 placeholder-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-primary focus:border-transparent"
@@ -478,11 +529,10 @@ export default function Home() {
 
               <div>
                 <label htmlFor="message" className="block text-sm font-medium text-foreground mb-2">
-                  Повідомлення
+                  Повідомлення<span className="text-red-500 ml-1">*</span>
                 </label>
                 <textarea
                   id="message"
-                  required
                   rows={4}
                   value={formState.message}
                   onChange={(e) => setFormState({ ...formState, message: e.target.value })}
@@ -491,26 +541,36 @@ export default function Home() {
                 />
               </div>
 
-              <button
-                type="submit"
-                disabled={isSubmitted}
-                className={`group w-full inline-flex items-center justify-center rounded-2xl px-6 py-4 text-sm font-semibold text-primary-foreground shadow-lg transition-all duration-300 active:scale-95 cursor-pointer ${
-                  isSubmitted 
-                    ? "bg-emerald-600 shadow-emerald-600/20" 
-                    : "bg-primary shadow-primary/20 hover:bg-primary/95 hover:shadow-primary/35 hover:-translate-y-1"
-                }`}
-              >
-                {isSubmitted ? (
-                  "Повідомлення надіслано!"
-                ) : (
-                  <>
-                    <span className="transition-transform duration-300 group-hover:-translate-x-1">
-                      Надіслати повідомлення
-                    </span>
-                    <Send className="ml-2 h-4 w-4 animate-fly" />
-                  </>
-                )}
-              </button>
+              <div className="group w-full">
+                <button
+                  type="submit"
+                  disabled={submitStatus === "submitting" || submitStatus === "success"}
+                  className={`w-full inline-flex items-center justify-center rounded-2xl px-6 py-4 text-sm font-semibold text-primary-foreground shadow-lg transition-all duration-300 active:scale-95 cursor-pointer ${
+                    submitStatus === "success" 
+                      ? "bg-emerald-600 shadow-emerald-600/20" 
+                      : submitStatus === "error"
+                      ? "bg-red-500 shadow-red-500/20"
+                      : submitStatus === "submitting"
+                      ? "bg-primary/70 shadow-primary/10 cursor-not-allowed"
+                      : "bg-primary shadow-primary/20 group-hover:bg-primary/95 group-hover:shadow-primary/35 group-hover:-translate-y-1"
+                  }`}
+                >
+                  {submitStatus === "success" ? (
+                    "Повідомлення надіслано!"
+                  ) : submitStatus === "error" ? (
+                    "Щось пішло не так..."
+                  ) : submitStatus === "submitting" ? (
+                    "Надсилання..."
+                  ) : (
+                    <>
+                      <span className="transition-transform duration-300 group-hover:-translate-x-1">
+                        Надіслати повідомлення
+                      </span>
+                      <Send className="ml-2 h-4 w-4 animate-fly" />
+                    </>
+                  )}
+                </button>
+              </div>
             </form>
           </ScrollReveal>
         </section>
@@ -528,6 +588,27 @@ export default function Home() {
           </div>
         </div>
       </footer>
+
+      {/* Error Toast */}
+      <AnimatePresence>
+        {errorMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }}
+            className="fixed bottom-6 right-6 z-50 flex items-center gap-3 bg-red-500/10 border border-red-500/20 text-red-500 px-4 py-3 rounded-2xl shadow-lg backdrop-blur-md"
+          >
+            <AlertCircle className="w-5 h-5 shrink-0" />
+            <span className="text-sm font-medium">{errorMessage}</span>
+            <button 
+              onClick={() => setErrorMessage(null)}
+              className="ml-2 text-red-500/70 hover:text-red-500 transition-colors cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 }

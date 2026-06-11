@@ -56,14 +56,14 @@ export function CardTilt({ children, className = "" }: CardTiltProps) {
 
   return (
     <div
+      ref={ref}
+      onMouseMove={handleMouseMove}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
       style={{ perspective: 1000 }}
       className="w-full h-full"
     >
       <motion.div
-        ref={ref}
-        onMouseMove={handleMouseMove}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
         style={{
           rotateX,
           rotateY,
