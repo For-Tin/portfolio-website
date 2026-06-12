@@ -4,7 +4,14 @@ import { ProjectsSection } from "@/components/sections/projects-section";
 import { SkillsSection } from "@/components/sections/skills-section";
 import { ContactSection } from "@/components/sections/contact-section";
 
-export default function Home() {
+import { createClient } from "@/lib/supabase/server";
+
+export default async function Home() {
+  const supabase = await createClient();
+  const { data: settingsData } = await supabase.from("site_settings").select("*");
+  const formsEnabledSetting = settingsData?.find((s: any) => s.key === "forms_enabled");
+  const formsEnabled = formsEnabledSetting ? formsEnabledSetting.value === "true" : true;
+
   return (
     <>
       <Navbar />
@@ -13,7 +20,7 @@ export default function Home() {
         <HeroSection />
         <ProjectsSection />
         <SkillsSection />
-        <ContactSection />
+        <ContactSection formsEnabled={formsEnabled} />
       </main>
 
       <footer className="w-full border-t border-border/20 py-8 bg-card/25 backdrop-blur-xs flex flex-col items-center">

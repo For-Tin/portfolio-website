@@ -46,15 +46,16 @@ function BioTypewriter() {
     return () => clearInterval(timer);
   }, [isInView, charIndex]);
 
-  let remaining = charIndex;
   const totalChars = bioParagraphs.join("").length;
 
   return (
     <div ref={ref} className="space-y-6 text-muted-foreground text-md sm:text-lg leading-relaxed">
       {bioParagraphs.map((p, i) => {
+        const previousChars = bioParagraphs.slice(0, i).join("").length;
         const pLen = p.length;
-        const take = Math.min(remaining, pLen);
-        remaining = Math.max(0, remaining - pLen);
+        const remainingForThis = Math.max(0, charIndex - previousChars);
+        const take = Math.min(remainingForThis, pLen);
+        
         const textToDisplay = p.slice(0, take);
         
         const isCurrentlyTyping = take > 0 && take < pLen;

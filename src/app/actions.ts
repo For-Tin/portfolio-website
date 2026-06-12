@@ -1,6 +1,7 @@
 "use server";
 
 import { headers } from "next/headers";
+import { createClient } from "@/lib/supabase/server";
 
 // Simple in-memory rate limiting map
 // Maps IP to { count, resetTime }
@@ -18,9 +19,9 @@ export async function sendTelegramMessage(formData: { name: string; email: strin
   const email = formData.email?.trim() || "";
   const message = formData.message?.trim() || "";
 
-  if (!name || name.length > 100) throw new Error("Invalid name length");
-  if (!email || email.length > 100 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Invalid email format");
-  if (!message || message.length > 2000) throw new Error("Message is too long");
+  if (!name || name.length > 100) return { error: "Недійсне ім'я" };
+  if (!email || email.length > 100 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: "Недійсний формат пошти" };
+  if (!message || message.length > 2000) return { error: "Повідомлення занадто довге" };
 
   // 3. IP Rate Limiting
   const headersList = await headers();
@@ -38,17 +39,50 @@ export async function sendTelegramMessage(formData: { name: string; email: strin
   rateLimitMap.set(ip, limitData);
 
   if (limitData.count > maxRequests) {
-    throw new Error("Занадто багато запитів. Будь ласка, зачекайте 10 хвилин.");
+    return { error: "Занадто багато запитів. Будь ласка, зачекайте 10 хвилин." };
+  }
+
+  // 4. Check if forms are enabled globally
+  const supabase = await createClient();
+  const { data: settings } = await supabase
+    .from("site_settings")
+    .select("value")
+    .eq("key", "forms_enabled")
+    .single();
+
+  if (settings && settings.value === "false") {
+    return { error: "Прийом нових повідомлень тимчасово призупинено." };
+  }
+
+  // 5. Save to Supabase
+  const { error: dbError } = await supabase
+    .from("contact_messages")
+    .insert([
+      { name, gmail: email, message, saw: false }
+    ]);
+
+  if (dbError) {
+    console.error("Supabase API Error:", dbError);
+    // We continue execution to at least send the Telegram message even if DB fails
   }
 
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
 
   if (!botToken || !chatId) {
-    throw new Error("Telegram configuration is missing in environment variables.");
+    console.error("Telegram configuration is missing in environment variables.");
+    return { error: "Внутрішня помилка сервера. Спробуйте пізніше." };
   }
 
-  const text = `🔔 <b>Нове повідомлення!</b>\n\n👤 <b>Ім'я:</b> ${name}\n📧 <b>Пошта:</b> ${email}\n\n📝 <b>Повідомлення:</b>\n${message}`;
+  // HTML escape function to prevent Telegram API parsing errors
+  const escapeHtml = (text: string) => {
+    return text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  };
+
+  const text = `🔔 <b>Нове повідомлення!</b>\n\n👤 <b>Ім'я:</b> ${escapeHtml(name)}\n📧 <b>Пошта:</b> ${escapeHtml(email)}\n\n📝 <b>Повідомлення:</b>\n${escapeHtml(message)}`;
 
   const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
   
@@ -67,7 +101,7 @@ export async function sendTelegramMessage(formData: { name: string; email: strin
   if (!response.ok) {
     const errorData = await response.text();
     console.error("Telegram API Error:", errorData);
-    throw new Error(`Telegram API error: ${response.statusText}`);
+    return { error: "Помилка відправки повідомлення в Telegram." };
   }
 
   return { success: true };

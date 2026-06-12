@@ -48,9 +48,9 @@ export async function ProjectsSection() {
         </ScrollReveal>
       </div>
 
-      <div className="flex md:grid md:grid-rows-2 md:grid-flow-col md:auto-cols-[520px] overflow-x-auto snap-x snap-mandatory gap-6 px-6 -mx-6 md:px-12 md:-mx-12 py-12 -my-12 scroll-smooth relative z-10 mobile-hide-scrollbar">
+      <div className="flex md:grid md:grid-rows-2 md:grid-flow-col md:auto-cols-[520px] overflow-x-auto snap-x snap-mandatory gap-6 px-6 -mx-6 md:px-12 md:-mx-12 py-12 -my-12 scroll-smooth scroll-pl-6 md:scroll-pl-12 relative z-10 mobile-hide-scrollbar">
         {projects.map((project: any, idx: number) => (
-          <ScrollReveal key={project.id} delay={idx % 2 * 0.1} duration={0.8} className="snap-center md:snap-start shrink-0 w-[85vw] md:w-auto h-full">
+          <ScrollReveal key={project.id} delay={idx % 2 * 0.1} duration={0.8} className="snap-start shrink-0 w-[85vw] md:w-auto h-full">
             <CardTilt className="flex flex-col justify-between h-full min-h-[350px]">
               <div className="flex-1">
                 <span className="text-xs font-semibold text-primary uppercase tracking-wider mb-3 block">

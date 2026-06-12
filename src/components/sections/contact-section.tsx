@@ -3,8 +3,9 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ScrollReveal } from "@/components/shared/scroll-reveal";
-import { Send, AlertCircle, X } from "lucide-react";
+import { Send, AlertCircle, X, Lock } from "lucide-react";
 import { sendTelegramMessage } from "@/app/actions";
+import { createClient } from "@/lib/supabase/client";
 
 const namesList = ["Дональд Трамп", "Володимир Зеленський", "Джо Байден", "Петро Порошенко", "Юлія Тимошенко"];
 const domainsList = ["example.com", "gmail.com", "ukr.net", "outlook.com", "yahoo.com", "proton.me", "icloud.com"];
@@ -56,9 +57,37 @@ function useTypewriter(words: string[], baseString: string = "", typeSpeed = 100
   return text;
 }
 
-export function ContactSection() {
+export function ContactSection({ formsEnabled = true }: { formsEnabled?: boolean }) {
+  const [isFormsEnabled, setIsFormsEnabled] = useState(formsEnabled);
   const [formState, setFormState] = useState({ name: "", email: "", message: "", honeypot: "" });
   const [isLoaded, setIsLoaded] = useState(false);
+
+  // Sync prop updates (if any) and set up Realtime subscription
+  useEffect(() => {
+    setIsFormsEnabled(formsEnabled);
+    
+    const supabase = createClient();
+    const channel = supabase
+      .channel('site_settings_changes')
+      .on(
+        'postgres_changes',
+        { 
+          event: 'UPDATE', 
+          schema: 'public', 
+          table: 'site_settings',
+          filter: 'key=eq.forms_enabled'
+        },
+        (payload) => {
+          console.log("Realtime forms status update:", payload.new.value);
+          setIsFormsEnabled(payload.new.value === 'true');
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [formsEnabled]);
 
   useEffect(() => {
     try {
@@ -125,7 +154,14 @@ export function ContactSection() {
     setErrorMessage(null);
     
     try {
-      await sendTelegramMessage(formState);
+      const result = await sendTelegramMessage(formState);
+      
+      if (result.error) {
+        setSubmitStatus("error");
+        showError(result.error);
+        setTimeout(() => setSubmitStatus("idle"), 4000);
+        return;
+      }
 
       setSubmitStatus("success");
       setFormState({ name: "", email: "", message: "", honeypot: "" });
@@ -134,7 +170,7 @@ export function ContactSection() {
     } catch (error: any) {
       console.error("Помилка відправки:", error);
       setSubmitStatus("error");
-      showError(error.message || "Щось пішло не так при відправці.");
+      showError("Щось пішло не так при відправці.");
       setTimeout(() => setSubmitStatus("idle"), 4000);
     }
   };
@@ -252,34 +288,59 @@ export function ContactSection() {
             </div>
 
             <div className="group w-full">
-              <button
-                type="submit"
-                disabled={submitStatus === "submitting" || submitStatus === "success"}
-                className={`w-full inline-flex items-center justify-center rounded-2xl px-6 py-4 text-sm font-semibold text-primary-foreground shadow-lg transition-all duration-300 active:scale-95 cursor-pointer ${
-                  submitStatus === "success" 
-                    ? "bg-emerald-600 shadow-emerald-600/20" 
-                    : submitStatus === "error"
-                    ? "bg-red-500 shadow-red-500/20"
-                    : submitStatus === "submitting"
-                    ? "bg-primary/70 shadow-primary/10 cursor-not-allowed"
-                    : "bg-primary shadow-primary/20 group-hover:bg-primary/95 group-hover:shadow-primary/35 group-hover:-translate-y-1"
-                }`}
-              >
-                {submitStatus === "success" ? (
-                  "Повідомлення надіслано!"
-                ) : submitStatus === "error" ? (
-                  "Щось пішло не так..."
-                ) : submitStatus === "submitting" ? (
-                  "Надсилання..."
-                ) : (
-                  <>
+              <AnimatePresence mode="wait">
+                {!isFormsEnabled ? (
+                  <motion.button
+                    key="disabled"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.2 }}
+                    type="button"
+                    onClick={() => showError("Анкети тимчасово закриті")}
+                    className="w-full inline-flex items-center justify-center rounded-2xl px-6 py-4 text-sm font-semibold text-rose-100 bg-rose-600 shadow-lg shadow-rose-600/20 transition-all duration-300 active:scale-95 cursor-pointer hover:bg-rose-700 hover:shadow-rose-600/30 group-hover:-translate-y-1"
+                  >
                     <span className="transition-transform duration-300 group-hover:-translate-x-1">
-                      Надіслати повідомлення
+                      Тимчасово недоступно
                     </span>
-                    <Send className="ml-2 h-4 w-4 animate-fly" />
-                  </>
+                    <Lock className="ml-2 h-4 w-4" />
+                  </motion.button>
+                ) : (
+                  <motion.button
+                    key="enabled"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.2 }}
+                    type="submit"
+                  disabled={submitStatus === "submitting" || submitStatus === "success"}
+                  className={`w-full inline-flex items-center justify-center rounded-2xl px-6 py-4 text-sm font-semibold text-primary-foreground shadow-lg transition-all duration-300 active:scale-95 cursor-pointer ${
+                    submitStatus === "success" 
+                      ? "bg-emerald-600 shadow-emerald-600/20" 
+                      : submitStatus === "error"
+                      ? "bg-red-500 shadow-red-500/20"
+                      : submitStatus === "submitting"
+                      ? "bg-primary/70 shadow-primary/10 cursor-not-allowed"
+                      : "bg-primary shadow-primary/20 group-hover:bg-primary/95 group-hover:shadow-primary/35 group-hover:-translate-y-1"
+                  }`}
+                >
+                  {submitStatus === "success" ? (
+                    "Повідомлення надіслано!"
+                  ) : submitStatus === "error" ? (
+                    "Щось пішло не так..."
+                  ) : submitStatus === "submitting" ? (
+                    "Надсилання..."
+                  ) : (
+                    <>
+                      <span className="transition-transform duration-300 group-hover:-translate-x-1">
+                        Надіслати повідомлення
+                      </span>
+                      <Send className="ml-2 h-4 w-4 animate-fly" />
+                    </>
+                  )}
+                  </motion.button>
                 )}
-              </button>
+              </AnimatePresence>
             </div>
           </form>
         </ScrollReveal>
