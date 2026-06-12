@@ -59,7 +59,7 @@ function useTypewriter(words: string[], baseString: string = "", typeSpeed = 100
 
 export function ContactSection({ formsEnabled = true }: { formsEnabled?: boolean }) {
   const [isFormsEnabled, setIsFormsEnabled] = useState(formsEnabled);
-  const [formState, setFormState] = useState({ name: "", email: "", message: "", honeypot: "" });
+  const [formState, setFormState] = useState({ name: "", email: "", message: "", honeypot: "", startTime: 0 });
   const [isLoaded, setIsLoaded] = useState(false);
 
   // Sync prop updates (if any) and set up Realtime subscription
@@ -93,10 +93,14 @@ export function ContactSection({ formsEnabled = true }: { formsEnabled?: boolean
     try {
       const saved = localStorage.getItem("contactFormState");
       if (saved) {
-        setFormState(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        setFormState({ ...parsed, startTime: Date.now() });
+      } else {
+        setFormState(prev => ({ ...prev, startTime: Date.now() }));
       }
     } catch (e) {
       console.error("Failed to parse form state", e);
+      setFormState(prev => ({ ...prev, startTime: Date.now() }));
     } finally {
       setIsLoaded(true);
     }
@@ -164,7 +168,7 @@ export function ContactSection({ formsEnabled = true }: { formsEnabled?: boolean
       }
 
       setSubmitStatus("success");
-      setFormState({ name: "", email: "", message: "", honeypot: "" });
+      setFormState({ name: "", email: "", message: "", honeypot: "", startTime: Date.now() });
       localStorage.removeItem("contactFormState");
       setTimeout(() => setSubmitStatus("idle"), 5000);
     } catch (error: any) {
@@ -193,7 +197,7 @@ export function ContactSection({ formsEnabled = true }: { formsEnabled?: boolean
 
         <ScrollReveal delay={0.2} className="w-full max-w-lg">
           <form onSubmit={handleSubmit} noValidate className="space-y-6 rounded-[2rem] border border-border/60 bg-card/30 p-8 backdrop-blur-sm shadow-sm">
-            <div className="hidden" aria-hidden="true" style={{ display: 'none' }}>
+            <div className="opacity-0 absolute -z-10 w-0 h-0 overflow-hidden" aria-hidden="true">
               <label htmlFor="website">Сайт</label>
               <input
                 type="text"

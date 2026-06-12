@@ -3,18 +3,24 @@
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 
-// Simple in-memory rate limiting map
-// Maps IP to { count, resetTime }
-const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
-
-export async function sendTelegramMessage(formData: { name: string; email: string; message: string; honeypot?: string }) {
+export async function sendTelegramMessage(formData: { name: string; email: string; message: string; honeypot?: string; startTime?: number }) {
   // 1. Honeypot check: If the hidden field is filled out, reject the request (bots fill this out)
   if (formData.honeypot) {
     console.log("Honeypot filled, rejecting request.");
     return { success: true }; // Pretend it succeeded
   }
 
-  // 2. Input validation
+  const now = Date.now();
+
+  // 2. Time-to-fill validation (reject if < 3 seconds)
+  if (formData.startTime) {
+    if (now - formData.startTime < 3000) {
+      console.log("Form filled too fast, rejecting request.");
+      return { success: true }; // Silent reject
+    }
+  }
+
+  // 3. Input validation
   const name = formData.name?.trim() || "";
   const email = formData.email?.trim() || "";
   const message = formData.message?.trim() || "";
@@ -23,27 +29,53 @@ export async function sendTelegramMessage(formData: { name: string; email: strin
   if (!email || email.length > 100 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: "Недійсний формат пошти" };
   if (!message || message.length > 2000) return { error: "Повідомлення занадто довге" };
 
-  // 3. IP Rate Limiting
+  // 4. URL Spam check
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const urls = message.match(urlRegex);
+  if (urls && urls.length > 2) {
+     return { error: "Повідомлення містить забагато посилань." };
+  }
+
+  const supabase = await createClient();
+
+  // 5. Database IP Rate Limiting
   const headersList = await headers();
   const ip = headersList.get("x-forwarded-for") || headersList.get("x-real-ip") || "unknown-ip";
-  const now = Date.now();
-  const windowMs = 10 * 60 * 1000; // 10 minutes
+  const windowMs = 30 * 60 * 1000; // 30 minutes
   const maxRequests = 3;
 
-  let limitData = rateLimitMap.get(ip);
-  if (!limitData || limitData.resetTime < now) {
-    limitData = { count: 1, resetTime: now + windowMs };
+  const { data: rateData } = await supabase
+    .from("rate_limits")
+    .select("*")
+    .eq("ip", ip)
+    .single();
+
+  if (rateData) {
+    const lastRequest = new Date(rateData.last_request).getTime();
+    if (now - lastRequest > windowMs) {
+      // Reset window
+      await supabase
+        .from("rate_limits")
+        .update({ request_count: 1, last_request: new Date(now).toISOString() })
+        .eq("ip", ip);
+    } else {
+      if (rateData.request_count >= maxRequests) {
+        return { error: "Занадто багато запитів. Будь ласка, зачекайте 30 хвилин." };
+      }
+      // Increment
+      await supabase
+        .from("rate_limits")
+        .update({ request_count: rateData.request_count + 1, last_request: new Date(now).toISOString() })
+        .eq("ip", ip);
+    }
   } else {
-    limitData.count++;
-  }
-  rateLimitMap.set(ip, limitData);
-
-  if (limitData.count > maxRequests) {
-    return { error: "Занадто багато запитів. Будь ласка, зачекайте 10 хвилин." };
+    // New IP entry
+    await supabase
+      .from("rate_limits")
+      .insert([{ ip, request_count: 1, last_request: new Date(now).toISOString() }]);
   }
 
-  // 4. Check if forms are enabled globally
-  const supabase = await createClient();
+  // 6. Check if forms are enabled globally
   const { data: settings } = await supabase
     .from("site_settings")
     .select("value")

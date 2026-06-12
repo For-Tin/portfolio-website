@@ -68,3 +68,19 @@ WITH CHECK (true);
 CREATE POLICY "Allow authenticated full access to messages" 
 ON contact_messages FOR ALL 
 USING (auth.role() = 'authenticated');
+
+-- 5. Створюємо таблицю для rate limiting по IP
+CREATE TABLE IF NOT EXISTS rate_limits (
+  ip text PRIMARY KEY,
+  request_count int DEFAULT 1 NOT NULL,
+  last_request timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Налаштування безпеки для rate_limits
+ALTER TABLE rate_limits ENABLE ROW LEVEL SECURITY;
+
+-- Дозволяємо системі безперешкодно працювати з таблицею (для service role це не потрібно, але для клієнтських запитів чи edge functions може бути корисним, якщо вони не використовують service role. Оскільки ми будемо оновлювати з сервера через Server Actions і anon role, потрібно дозволити insert та update).
+CREATE POLICY "Allow anonymous full access to rate_limits" 
+ON rate_limits FOR ALL 
+USING (true)
+WITH CHECK (true);
