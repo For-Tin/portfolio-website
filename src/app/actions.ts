@@ -1,7 +1,7 @@
 "use server";
 
 import { headers } from "next/headers";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 
 export async function sendTelegramMessage(formData: { name: string; email: string; message: string; honeypot?: string; startTime?: number }) {
   // 1. Honeypot check: If the hidden field is filled out, reject the request (bots fill this out)
@@ -36,7 +36,7 @@ export async function sendTelegramMessage(formData: { name: string; email: strin
      return { error: "Повідомлення містить забагато посилань." };
   }
 
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   // 5. Database IP Rate Limiting
   const headersList = await headers();
@@ -90,12 +90,12 @@ export async function sendTelegramMessage(formData: { name: string; email: strin
   const { error: dbError } = await supabase
     .from("contact_messages")
     .insert([
-      { name, gmail: email, message, saw: false }
+      { name, gmail: email, message, saw: false, created_at: new Date().toISOString() }
     ]);
 
   if (dbError) {
     console.error("Supabase API Error:", dbError);
-    // We continue execution to at least send the Telegram message even if DB fails
+    return { error: "Помилка збереження повідомлення. Спробуйте пізніше." };
   }
 
   const botToken = process.env.TELEGRAM_BOT_TOKEN;

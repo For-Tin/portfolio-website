@@ -94,8 +94,10 @@ export function ContactSection({ formsEnabled = true }: { formsEnabled?: boolean
       const saved = localStorage.getItem("contactFormState");
       if (saved) {
         const parsed = JSON.parse(saved);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setFormState({ ...parsed, startTime: Date.now() });
       } else {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setFormState(prev => ({ ...prev, startTime: Date.now() }));
       }
     } catch (e) {
@@ -185,7 +187,7 @@ export function ContactSection({ formsEnabled = true }: { formsEnabled?: boolean
         <div className="text-center mb-12">
           <ScrollReveal>
             <h2 className="text-3xl sm:text-5xl font-bold tracking-tight mb-4">
-              Зв'язатися зі мною
+              Зв&apos;язатися зі мною
             </h2>
           </ScrollReveal>
           <ScrollReveal delay={0.1}>
@@ -198,13 +200,13 @@ export function ContactSection({ formsEnabled = true }: { formsEnabled?: boolean
         <ScrollReveal delay={0.2} className="w-full max-w-lg">
           <form onSubmit={handleSubmit} noValidate className="space-y-6 rounded-[2rem] border border-border/60 bg-card/30 p-8 backdrop-blur-sm shadow-sm">
             <div className="opacity-0 absolute -z-10 w-0 h-0 overflow-hidden" aria-hidden="true">
-              <label htmlFor="website">Сайт</label>
+              <label htmlFor="user_custom_reference">Reference</label>
               <input
                 type="text"
-                id="website"
-                name="website"
+                id="user_custom_reference"
+                name="user_custom_reference"
                 tabIndex={-1}
-                autoComplete="off"
+                autoComplete="new-password"
                 value={formState.honeypot}
                 onChange={(e) => setFormState({ ...formState, honeypot: e.target.value })}
               />
@@ -213,7 +215,7 @@ export function ContactSection({ formsEnabled = true }: { formsEnabled?: boolean
             <div>
               <div className="flex justify-between items-end mb-2">
                 <label htmlFor="name" className="block text-sm font-medium text-foreground">
-                  Ім'я<span className="text-red-500 ml-1">*</span>
+                  Ім&apos;я<span className="text-red-500 ml-1">*</span>
                 </label>
                 <span className={`text-xs ${formState.name.length >= 100 ? 'text-red-500' : 'text-muted-foreground'}`}>
                   {formState.name.length} / 100

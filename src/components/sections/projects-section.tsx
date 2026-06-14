@@ -32,7 +32,6 @@ async function getGithubProjects() {
 
 export async function ProjectsSection() {
   const projects = await getGithubProjects();
-
   return (
     <section id="projects" className="w-full max-w-6xl px-6 py-24 border-t border-border/20">
       <div className="mb-16 text-center md:text-left">

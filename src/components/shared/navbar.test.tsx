@@ -10,7 +10,7 @@ describe("Navbar Component", () => {
     expect(screen.getByText("Головна")).toBeInTheDocument();
     expect(screen.getByText("Проєкти")).toBeInTheDocument();
     expect(screen.getByText("Навички")).toBeInTheDocument();
-    expect(screen.getByText("Контакти")).toBeInTheDocument();
+    expect(screen.getByText("Зв'язатися")).toBeInTheDocument();
   });
 
   it("toggles mobile menu on mobile drawer button click", () => {

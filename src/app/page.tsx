@@ -8,9 +8,11 @@ import { createClient } from "@/lib/supabase/server";
 
 export default async function Home() {
   const supabase = await createClient();
-  const { data: settingsData } = await supabase.from("site_settings").select("*");
+  const { data: settingsData, error } = await supabase.from("site_settings").select("*");
   const formsEnabledSetting = settingsData?.find((s: any) => s.key === "forms_enabled");
-  const formsEnabled = formsEnabledSetting ? formsEnabledSetting.value === "true" : true;
+  
+  // Якщо помилка (немає доступу до БД або RLS блокує), примусово вимикаємо форми
+  const formsEnabled = error ? false : (formsEnabledSetting ? formsEnabledSetting.value === "true" : true);
 
   return (
     <>
